@@ -7,10 +7,13 @@ import ffmpeg
 from vosk import Model, KaldiRecognizer, SetLogLevel
 import json
 
+import pandas as pd
+
 import moviepy
 
 # Forbidden words
-forbidden_words = ["fuck", "sex", "pussy"]
+forbidden_words = pd.read_csv("BadWords.txt", header=None, names=["word"])
+
 
 # Vosk and ffmpeg setup
 SetLogLevel(-1)
@@ -19,15 +22,14 @@ model = Model(lang="en-us")
 rec = KaldiRecognizer(model, sample_rate)
 rec.SetWords(True)
 
-
 # List of words with Timestamps
-input_text = []
+transcript = pd.DataFrame(columns = ["conf", "end", "start", "word"])
+idx = 0
 
 process = subprocess.Popen(['ffmpeg', '-loglevel', 'quiet', '-i',
                             "Test.mp4",
                             '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le', '-'],
                             stdout=subprocess.PIPE)
-
 
 while True:
     data = process.stdout.read(4096)
@@ -37,15 +39,11 @@ while True:
     if rec.AcceptWaveform(data):
         res = json.loads(rec.Result())
         if len(res) != 1:
-            res = res["result"]
-            for i in res:
+            for i in res["result"]:
                 if i["word"] != "":
-                    input_text.append(i)
-        
-for index in range(len(input_text)):
-    word = input_text[index]["word"].lower()
-    for xword in forbidden_words:
-        if xword in word:
-            print(index, ":", word, input_text[index]["start"], input_text[index]["end"])
-    
-    
+                    transcript.loc[idx] = i
+                    idx += 1
+                    
+print("Extraction finished")
+
+tts_input = transcript[(transcript["word"]).str.contains('|'.join(forbidden_words["word"]))]
