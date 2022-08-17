@@ -15,6 +15,7 @@ from gtts import gTTS
 badWords = pd.read_csv("BadWords.txt", header=None, names=["word"])
 
 censorType = 0
+censorAll = True
 
 # Vosk and ffmpeg setup
 SetLogLevel(-1)
@@ -47,10 +48,14 @@ while True:
 
 if not os.path.exists("BadWords"):
     os.makedirs("BadWords")
+    
+if censorAll and not os.path.exists("Words"):
+    os.makedirs("Words")
 
 badWordJoin = '|'.join(badWords["word"])
 
-existingFiles = os.listdir("BadWords")
+existingBadWords = os.listdir("BadWords")
+existingWords = os.listdir("Words")
 
 video = mp.VideoFileClip("Test.mp4")
 audio = video.audio
@@ -60,8 +65,13 @@ rx = re.compile(badWordJoin)
 clips = []
 
 for idx, row in transcript.iterrows():
+    badWord = True
+    
     if not bool(rx.search(row["word"])):
-        continue
+        if not censorAll:
+            continue
+        else:
+            badWord = False
     
     end = datetime.timedelta(seconds=row["start"])
     
@@ -71,16 +81,30 @@ for idx, row in transcript.iterrows():
     duration = audio.subclip(str(end), str(start)).duration
     
     # TTS-Replacement
-    if (censorType == 0):
+    if (censorAll or censorType == 0):
         word = row["word"].lower()
         filename = word.replace(" ", "") + ".mp3"
         
-        if filename not in existingFiles:
+        # Word exists as a file
+        if badWord and filename in existingBadWords:
+            replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
+        elif censorAll and filename in existingWords:
+            replacementAudio = mp.AudioFileClip("Words/"+ filename)
+        # Word needs to be generated
+        elif badWord:
             outObj = gTTS(word.lower())
             outObj.save("BadWords/"+ filename)
-            existingFiles.append(filename)
-
-        replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
+            existingBadWords.append(filename)
+        else:
+            outObj = gTTS(word.lower())
+            outObj.save("Words/"+ filename)
+            existingWords.append(filename)
+        
+        if badWord:
+            replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
+        else:
+            replacementAudio = mp.AudioFileClip("Words/"+ filename)
+        
         clips.append(replacementAudio.fx(mp.vfx.speedx, replacementAudio.duration / duration))
     # Beep-Replacement
     elif (censorType == 1):
@@ -96,8 +120,12 @@ for idx, row in transcript.iterrows():
         clips.append(mp.AudioFileClip("silence.mp3").set_duration(duration))
 
 
-audio = mp.concatenate_audioclips(clips)
+audio.close()
+newAudio = mp.concatenate_audioclips(clips)
 
-video = video.set_audio(audio)
+newVideo = video.set_audio(audio)
+newAudio.close()
+video.close()
 
-video.write_videofile("output.mp4")
+newVideo.write_videofile("output.mp4")
+newVideo.close()

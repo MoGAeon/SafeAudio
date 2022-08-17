@@ -3,8 +3,6 @@ from gtts import gTTS
 import pandas as pd
 import time
 
-start_t = time.time()
-
 # Forbidden words
 forbidden_words = pd.read_csv("BadWords.txt", header=None, names=["word"]).drop_duplicates()
 
@@ -20,7 +18,3 @@ for ids, row in forbidden_words.iterrows():
     #if not os.path.exists(filename):
     outObj = gTTS(word)
     outObj.save(filename)
-        
-end_t = time.time()
-
-print(end_t - start_t)
