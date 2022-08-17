@@ -1,4 +1,3 @@
-import sys
 import re
 import os
 import subprocess
@@ -8,14 +7,14 @@ from vosk import Model, KaldiRecognizer, SetLogLevel
 import json
 import pandas as pd
 
-import time
 import datetime
 import moviepy.editor as mp
 from gtts import gTTS
 
 # Forbidden words
 badWords = pd.read_csv("BadWords.txt", header=None, names=["word"])
-censorType = 1
+
+censorType = 0
 
 # Vosk and ffmpeg setup
 SetLogLevel(-1)
@@ -72,7 +71,7 @@ for idx, row in transcript.iterrows():
     duration = audio.subclip(str(end), str(start)).duration
     
     # TTS-Replacement
-    if (censorType != 1):
+    if (censorType == 0):
         word = row["word"].lower()
         filename = word.replace(" ", "") + ".mp3"
         
@@ -84,11 +83,17 @@ for idx, row in transcript.iterrows():
         replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
         clips.append(replacementAudio.fx(mp.vfx.speedx, replacementAudio.duration / duration))
     # Beep-Replacement
-    if (censorType == 1):
+    elif (censorType == 1):
         while (duration >= 5):
             clips.append(mp.AudioFileClip("beep.mp3"))
             duration = duration - 5
         clips.append(mp.AudioFileClip("beep.mp3").set_duration(duration))
+    # Silence-Replacement
+    elif (censorType == 2):
+        while (duration >= 2):
+            clips.append(mp.AudioFileClip("silence.mp3"))
+            duration = duration - 2
+        clips.append(mp.AudioFileClip("silence.mp3").set_duration(duration))
 
 
 audio = mp.concatenate_audioclips(clips)
