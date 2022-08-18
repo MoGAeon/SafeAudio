@@ -4,15 +4,16 @@ re
 os
 sys
 subprocess
-math
+
 vosk
+
 json
 pandas
-numpy
+
 time
 datetime
 nltk
-moviepy
-gtts
+moviepy.editor as mp
+gtts import gTTS
+soundfile
 librosa
-moviepy
