@@ -1,6 +1,7 @@
 Usage: python AudioSafety.py [-h | -a | -c=[beep | silence]]*
 Censors all files in the "input"-folder with Text-To-Speech on the words 
 in any .txt file in the "src"-folder with "BadWords" in its name.
+Running the "BuildBadWords.py" with good BadWords-files is strongly recommended.
 
 Options:
 -h 	 Help
