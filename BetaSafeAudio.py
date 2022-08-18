@@ -2,13 +2,11 @@ import re
 import os
 import sys
 import subprocess
-import math
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
 
 import json
 import pandas as pd
-import numpy as np
 
 import time
 import datetime
@@ -17,12 +15,10 @@ import moviepy.editor as mp
 from gtts import gTTS
 import soundfile
 import librosa
-from moviepy.audio.AudioClip import AudioArrayClip
 
 censorType = 0
 censorAll = False
 input_File = ""
-fast = True
 start_ts = time.time()
 
 def writeHelp():
@@ -31,7 +27,6 @@ def writeHelp():
     os.write(1, b'in any .txt file in the "src"-folder with "BadWords" in its name.\n\n')
     os.write(1, b'Options:\n')
     os.write(1, b'-h \t Help\n')
-    os.write(1, b'-e \t Enhanced censoring (WARNING! Increases calculation time)\n')
     os.write(1, b'-a \t Censor all words (WARNING! Increases calculation time)\n')
     os.write(1, b' \t overrides -c\n')
     os.write(1, b'-c \t Allows selection for type of censor:\n')
@@ -56,8 +51,6 @@ if len(sys.argv) != 1:
             else:
                 writeHelp()
                 sys.exit()
-        elif "-e" == param:
-            fast = False
         else:
             writeHelp()
             sys.exit()
@@ -125,9 +118,6 @@ for file in os.listdir("input"):
                     if dataRow["word"] != "":
                         transcript.loc[idx] = dataRow
                         idx += 1
-                        
-    
-    os.write(1, b'Analysis done.\n')
     
     video = mp.VideoFileClip("input/" + file)
     audio = video.audio
@@ -135,6 +125,7 @@ for file in os.listdir("input"):
     start = datetime.timedelta()
     rx = re.compile(badWordJoin)
     clips = []
+    cnt = 0
     
     for idx, row in transcript.iterrows():
         #insert no word part
@@ -147,16 +138,15 @@ for file in os.listdir("input"):
         word = row["word"].lower()
         badWord = bool(rx.search(word))
         
-        insecure = not fast and row["conf"] < 0.9
+        insecure = row["conf"] < 0.9
         
         if insecure:
             insecure = False
             wordlen = len(word)
-            if wordlen > 4 and row["conf"] >= 0.5:
-                for aBadWord in badWords:
-                    if nltk.edit_distance(word, aBadWord) < int(wordlen - (wordlen*row["conf"])):
-                        insecure = True
-                        break;
+            for aBadWord in badWords:
+                if nltk.edit_distance(word, aBadWord) < wordlen:
+                    insecure = True
+                    break;
                         
         if not (insecure or badWord):
             clips.append(audio.subclip(str(end), str(start)))
@@ -189,14 +179,12 @@ for file in os.listdir("input"):
             audioToCorrect, sr = librosa.load("src/silence.mp3", sr)
     
         if censorAll or badWord or insecure:
-            if badWord:
-                print("Censored:", word)
-            elif insecure:
-                print("Censored:", word, row["conf"], aBadWord)
             newSnippet = librosa.effects.time_stretch(audioToCorrect, librosa.get_duration(audioToCorrect, sr) / duration)
             soundfile.write("temp.wav", newSnippet, sr)
             
             clips.append(mp.AudioFileClip("temp.wav"))
+            
+            cnt += 1
     
     clips.append(audio.subclip(str(start)))
     
@@ -205,12 +193,11 @@ for file in os.listdir("input"):
     newVideo = video.set_audio(newAudio)
     
     newVideo.write_videofile("output/" + file)
-    
-    os.remove("temp.wav")
 
     audio.close()
     video.close()
     newAudio.close()
     newVideo.close()
     
+    print("Bad words:", cnt)
     print("Duration:", time.time()-start_ts, "sec")
