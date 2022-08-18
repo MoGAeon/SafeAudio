@@ -1,131 +1,216 @@
 import re
 import os
+import sys
 import subprocess
+import math
 
 from vosk import Model, KaldiRecognizer, SetLogLevel
 
 import json
 import pandas as pd
+import numpy as np
 
+import time
 import datetime
+import nltk
 import moviepy.editor as mp
 from gtts import gTTS
-
-# Forbidden words
-badWords = pd.read_csv("BadWords.txt", header=None, names=["word"])
+import soundfile
+import librosa
+from moviepy.audio.AudioClip import AudioArrayClip
 
 censorType = 0
-censorAll = True
+censorAll = False
+input_File = ""
+fast = True
+start_ts = time.time()
 
-# Vosk and ffmpeg setup
-SetLogLevel(-1)
-sample_rate=16000
-model = Model(lang="en-us")
-rec = KaldiRecognizer(model, sample_rate)
-rec.SetWords(True)
+def writeHelp():
+    os.write(1, b'Usage: python AudioSafety.py [-h | -a | -c=[beep | silence]]*\n')
+    os.write(1, b'Censors all files in the "input"-folder with Text-To-Speech on the words \n')
+    os.write(1, b'in any .txt file in the "src"-folder with "BadWords" in its name.\n\n')
+    os.write(1, b'Options:\n')
+    os.write(1, b'-h \t Help\n')
+    os.write(1, b'-e \t Enhanced censoring (WARNING! Increases calculation time)\n')
+    os.write(1, b'-a \t Censor all words (WARNING! Increases calculation time)\n')
+    os.write(1, b' \t overrides -c\n')
+    os.write(1, b'-c \t Allows selection for type of censor:\n')
+    os.write(1, b'\t beep: Censors with a "beep" sound.\n')
+    os.write(1, b'\t silence: Censors by removing the audio.\n')
 
-# List of words with Timestamps
-transcript = pd.DataFrame(columns = ["conf", "end", "start", "word"])
-idx = 0
+if len(sys.argv) != 1:
+    params = sys.argv[1:]
+    for param in params:
+        if "-h" == param:
+            writeHelp()
+            sys.exit()
+        elif "-a" == param:
+            censorAll = True
+            pass
+        elif "-c=" in param:
+            param_val = param[3:]
+            if param_val == "beep":
+                censorType = 1
+            elif param_val == "silence":
+                censorType = 2
+            else:
+                writeHelp()
+                sys.exit()
+        elif "-e" == param:
+            fast = False
+        else:
+            writeHelp()
+            sys.exit()
 
-process = subprocess.Popen(['ffmpeg', '-loglevel', 'quiet', '-i',
-                            "Test.mp4",
-                            '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le', '-'],
-                            stdout=subprocess.PIPE)
+# Forbidden words
 
-while True:
-    data = process.stdout.read(4096)
-    if len(data) == 0:
-        process.kill()
-        break
-    if rec.AcceptWaveform(data):
-        res = json.loads(rec.Result())
-        if len(res) != 1:
-            for i in res["result"]:
-                if i["word"] != "":
-                    transcript.loc[idx] = i
-                    idx += 1
+badWords = []
 
+for file in os.listdir("src"):
+    if "BadWords" not in file:
+        continue
+    for word in pd.read_csv("src/" + file, header=None, names=["word"]).drop_duplicates()["word"]:
+        badWords.append(word)
+badWords = list(dict.fromkeys(badWords))
+
+badWordJoin = '|'.join(badWords)
+    
+if not os.path.exists("output"):
+    os.makedirs("output")
+    
 if not os.path.exists("BadWords"):
     os.makedirs("BadWords")
     
-if censorAll and not os.path.exists("Words"):
+if not os.path.exists("Words"):
     os.makedirs("Words")
 
-badWordJoin = '|'.join(badWords["word"])
+if not os.path.exists("input"):
+    os.write(1, b'Input folder missing.\n')
+    os.makedirs("input")
+    sys.exit()
 
 existingBadWords = os.listdir("BadWords")
 existingWords = os.listdir("Words")
 
-video = mp.VideoFileClip("Test.mp4")
-audio = video.audio
+# Vosk and ffmpeg setup
+SetLogLevel(-1)
+sr=16000
 
-start = datetime.timedelta()
-rx = re.compile(badWordJoin)
-clips = []
+for file in os.listdir("input"):
+   
+    os.write(1, str.encode("Censoring file: " + file + "\n\n"))
+    
+    model = Model(lang="en-us")
+    rec = KaldiRecognizer(model, sr)
+    rec.SetWords(True)
+    
+    # List of words with Timestamps
+    transcript = pd.DataFrame(columns = ["conf", "end", "start", "word"])
+    idx = 0
+    
+    process = subprocess.Popen(['ffmpeg', '-loglevel', 'quiet', '-i',
+                                "input/" + file,
+                                '-ar', str(sr) , '-ac', '1', '-f', 's16le', '-'],
+                                stdout=subprocess.PIPE)
+    
+    while True:
+        data = process.stdout.read(4096)
+        if len(data) == 0:
+            process.wait()
+            break
+        if rec.AcceptWaveform(data):
+            res = json.loads(rec.Result())
+            if len(res) != 1:
+                for dataRow in res["result"]:
+                    if dataRow["word"] != "":
+                        transcript.loc[idx] = dataRow
+                        idx += 1
+                        
+    
+    os.write(1, b'Analysis done.\n')
+    
+    video = mp.VideoFileClip("input/" + file)
+    audio = video.audio
+    
+    start = datetime.timedelta()
+    rx = re.compile(badWordJoin)
+    clips = []
+    
+    for idx, row in transcript.iterrows():
+        #insert no word part
+        end = datetime.timedelta(seconds=row["start"])
+        
+        clips.append(audio.subclip(str(start), str(end)))
+        
+        start = datetime.timedelta(seconds=row["end"])
 
-for idx, row in transcript.iterrows():
-    badWord = True
-    
-    if not bool(rx.search(row["word"])):
-        if not censorAll:
-            continue
-        else:
-            badWord = False
-    
-    end = datetime.timedelta(seconds=row["start"])
-    
-    clips.append(audio.subclip(str(start), str(end)))
-    
-    start = datetime.timedelta(seconds=row["end"])
-    duration = audio.subclip(str(end), str(start)).duration
-    
-    # TTS-Replacement
-    if (censorAll or censorType == 0):
         word = row["word"].lower()
-        filename = word.replace(" ", "") + ".mp3"
+        badWord = bool(rx.search(word))
         
-        # Word exists as a file
-        if badWord and filename in existingBadWords:
-            replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
-        elif censorAll and filename in existingWords:
-            replacementAudio = mp.AudioFileClip("Words/"+ filename)
-        # Word needs to be generated
-        elif badWord:
-            outObj = gTTS(word.lower())
-            outObj.save("BadWords/"+ filename)
-            existingBadWords.append(filename)
-        else:
-            outObj = gTTS(word.lower())
-            outObj.save("Words/"+ filename)
-            existingWords.append(filename)
+        insecure = not fast and row["conf"] < 0.9
         
-        if badWord:
-            replacementAudio = mp.AudioFileClip("BadWords/"+ filename)
-        else:
-            replacementAudio = mp.AudioFileClip("Words/"+ filename)
+        if insecure:
+            insecure = False
+            wordlen = len(word)
+            if wordlen > 4 and row["conf"] >= 0.5:
+                for aBadWord in badWords:
+                    if nltk.edit_distance(word, aBadWord) < int(wordlen - (wordlen*row["conf"])):
+                        insecure = True
+                        break;
+                        
+        if not (insecure or badWord):
+            clips.append(audio.subclip(str(end), str(start)))
+            continue
         
-        clips.append(replacementAudio.fx(mp.vfx.speedx, replacementAudio.duration / duration))
-    # Beep-Replacement
-    elif (censorType == 1):
-        while (duration >= 5):
-            clips.append(mp.AudioFileClip("beep.mp3"))
-            duration = duration - 5
-        clips.append(mp.AudioFileClip("beep.mp3").set_duration(duration))
-    # Silence-Replacement
-    elif (censorType == 2):
-        while (duration >= 2):
-            clips.append(mp.AudioFileClip("silence.mp3"))
-            duration = duration - 2
-        clips.append(mp.AudioFileClip("silence.mp3").set_duration(duration))
+        duration = start.total_seconds() - end.total_seconds()
+        
+        # TTS-Replacement
+        if (censorAll or censorType == 0):
+            filename = word.replace(" ", "") + ".wav"
+            
+            # Word exists as a file
+            if badWord:
+                if filename not in existingBadWords:
+                    outObj = gTTS(word.lower())
+                    outObj.save("BadWords/"+ filename)
+                    existingBadWords.append(filename)
+                audioToCorrect, sr = librosa.load("BadWords/"+ filename, sr)
+            elif censorAll or insecure:
+                if filename not in existingWords:
+                    outObj = gTTS(word.lower())
+                    outObj.save("Words/"+ filename)
+                    existingWords.append(filename)
+                audioToCorrect, sr = librosa.load("Words/"+ filename, sr)        
+        # Beep-Replacement
+        elif (censorType == 1):
+            audioToCorrect, sr = librosa.load("src/beep.mp3", sr)
+        # Silence-Replacement
+        elif (censorType == 2):
+            audioToCorrect, sr = librosa.load("src/silence.mp3", sr)
+    
+        if censorAll or badWord or insecure:
+            if badWord:
+                print("Censored:", word)
+            elif insecure:
+                print("Censored:", word, row["conf"], aBadWord)
+            newSnippet = librosa.effects.time_stretch(audioToCorrect, librosa.get_duration(audioToCorrect, sr) / duration)
+            soundfile.write("temp.wav", newSnippet, sr)
+            
+            clips.append(mp.AudioFileClip("temp.wav"))
+    
+    clips.append(audio.subclip(str(start)))
+    
+    newAudio = mp.concatenate_audioclips(clips)
+    
+    newVideo = video.set_audio(newAudio)
+    
+    newVideo.write_videofile("output/" + file)
+    
+    os.remove("temp.wav")
 
-
-audio.close()
-newAudio = mp.concatenate_audioclips(clips)
-
-newVideo = video.set_audio(audio)
-newAudio.close()
-video.close()
-
-newVideo.write_videofile("output.mp4")
-newVideo.close()
+    audio.close()
+    video.close()
+    newAudio.close()
+    newVideo.close()
+    
+    print("Duration:", time.time()-start_ts, "sec")

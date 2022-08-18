@@ -1,6 +1,18 @@
-Setup:
+Use pip to install the following packages:
 
-Install pyaudio for python 3.9
-
-Install Vosk
-'pip install vosk'
+re
+os
+sys
+subprocess
+math
+vosk
+json
+pandas
+numpy
+time
+datetime
+nltk
+moviepy
+gtts
+librosa
+moviepy

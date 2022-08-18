@@ -3,18 +3,22 @@ from gtts import gTTS
 import pandas as pd
 import time
 
-# Forbidden words
-forbidden_words = pd.read_csv("BadWords.txt", header=None, names=["word"]).drop_duplicates()
+for file in os.listdir("src"):
+    if "BadWords" not in file:
+        continue
 
-forbidden_words.to_csv("BadWords.txt",header=False,index=False)
+    file = file.lower()
 
-if not os.path.exists("BadWords"):
-    os.makedirs("BadWords")
-
-for ids, row in forbidden_words.iterrows():
-    word = row["word"]
-    filename = "BadWords/" + word.replace(" ", "") + ".mp3"
+    # Forbidden words
+    forbidden_words = pd.read_csv("src/" + file, header=None, names=["word"]).drop_duplicates()
     
-    #if not os.path.exists(filename):
-    outObj = gTTS(word)
-    outObj.save(filename)
+    if not os.path.exists("BadWords"):
+        os.makedirs("BadWords")
+    
+    for ids, row in forbidden_words.iterrows():
+        word = row["word"]
+        filename = "BadWords/" + word.replace(" ", "") + ".wav"
+        
+        if not os.path.exists(filename):
+            outObj = gTTS(word)
+            outObj.save(filename)
