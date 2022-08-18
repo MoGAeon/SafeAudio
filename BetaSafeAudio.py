@@ -138,13 +138,13 @@ for file in os.listdir("input"):
         word = row["word"].lower()
         badWord = bool(rx.search(word))
         
-        insecure = row["conf"] < 0.9
+        insecure = row["conf"] < 0.95
         
         if insecure:
             insecure = False
             wordlen = len(word)
             for aBadWord in badWords:
-                if nltk.edit_distance(word, aBadWord) < wordlen:
+                if nltk.edit_distance(word, aBadWord) > max(wordlen, len(aBadWord))*(1-row["conf"]):
                     insecure = True
                     break;
                         
@@ -200,4 +200,4 @@ for file in os.listdir("input"):
     newVideo.close()
     
     print("Bad words:", cnt)
-    print("Duration:", time.time()-start_ts, "sec")
+    print("Duration:", int(time.time()-start_ts), "sec")
