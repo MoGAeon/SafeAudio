@@ -88,18 +88,17 @@ existingWords = os.listdir("Words")
 # Vosk and ffmpeg setup
 SetLogLevel(-1)
 sr=16000
+model = Model("model_en-us_lgraph")
 
 for file in os.listdir("input"):
    
     os.write(1, str.encode("Censoring file: " + file + "\n\n"))
     
-    model = Model(lang="en-us")
-    rec = KaldiRecognizer(model, sr)
-    rec.SetWords(True)
-    
     # List of words with Timestamps
     transcript = pd.DataFrame(columns = ["conf", "end", "start", "word"])
     idx = 0
+    rec = KaldiRecognizer(model, sr)
+    rec.SetWords(True)
     
     process = subprocess.Popen(['ffmpeg', '-loglevel', 'quiet', '-i',
                                 "input/" + file,
