@@ -147,7 +147,7 @@ for file in os.listdir("input"):
                     insecure = True
                     break;
                         
-        if not (insecure or badWord):
+        if not (insecure or badWord or censorAll):
             clips.append(audio.subclip(str(end), str(start)))
             continue
         
