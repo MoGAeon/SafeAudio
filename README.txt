@@ -4,6 +4,9 @@ In the folder "src" you will find a file named  "BadWords". Thise is a simple li
 You can use this, get your own list of words or add more to your liking. 
 Note that all files containing "BadWords" in their names will be used for detection and censoring.
 
+Install python 3.9, which is the version I used for development. It might run on higher or lower versions, 
+but I never tested it there and dont intend to.
+
 Now use "pip install %Name%" for all of the following packages by replacing %Name% in the command:
 
 re
