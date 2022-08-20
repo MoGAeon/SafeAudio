@@ -32,7 +32,7 @@ in any .txt file in the "src"-folder with "BadWords" in its name.
 Running the "BuildBadWords.py" with good BadWords-files is strongly recommended.
 
 Options:
--h 	 Help
+-h 	 Help: Shows this list in the commandline.
 -a 	 Censor all words (WARNING! Increases calculation time)
  	 overrides -c
 -c 	 Allows selection for type of censor:
