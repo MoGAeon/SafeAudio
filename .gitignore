@@ -5,3 +5,4 @@ output/*
 BadWords/*
 temp.wav
 *.lnk
+ExtractAudio.py
