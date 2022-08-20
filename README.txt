@@ -7,6 +7,9 @@ Note that all files containing "BadWords" in their names will be used for detect
 Install python 3.9, which is the version I used for development. It might run on higher or lower versions, 
 but I never tested it there and dont intend to.
 
+Install FFMPEG:
+Download FFMPEG from https://ffmpeg.org/ and install it. Make sure to add the executable to your path-variable.
+
 Now use "pip install %Name%" for all of the following packages by replacing %Name% in the command:
 
 re
