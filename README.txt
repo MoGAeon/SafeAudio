@@ -8,7 +8,7 @@ Install python 3.9, which is the version I used for development. It might run on
 but I never tested it there and dont intend to.
 
 Install FFMPEG:
-Download FFMPEG from https://ffmpeg.org/ and install it. Make sure to add the executable to your path-variable.
+I installed ImageIO-ffmpeg and ImageIO, which allows me to natively run FFMPEG using subprocesses. You can do that as well or install FFMPEG yourself and set the path variable accordingly.
 
 Now use "pip install %Name%" for all of the following packages by replacing %Name% in the command:
 
